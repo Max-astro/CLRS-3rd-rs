@@ -1,5 +1,5 @@
+// #![feature(total_cmp)]
 use std::cell::RefCell;
-use std::cmp::Ordering;
 use std::collections::{BinaryHeap, VecDeque};
 use std::rc::Rc;
 
@@ -14,14 +14,16 @@ type Vptr = Rc<RefCell<Vertex>>;
 type Vlist = Vec<Rc<RefCell<Vertex>>>;
 pub struct Vertex {
     idx: usize,
-    visited: u8,
+    visited: u32,
     color: Color,
-    discover_time: u8,
-    finish_time: u8,
-    depth: u8,
-    indegree: u8,
+    discover_time: u32,
+    finish_time: u32,
+    depth: u32,
+    indegree: u32,
+    distance: f32,
     ancestor: Option<Vptr>,
     vlist: Vlist,
+    edges: Vec<Edge>,
 }
 
 impl std::fmt::Display for Vertex {
@@ -53,10 +55,12 @@ impl Vertex {
             color: Color::White,
             discover_time: 0,
             finish_time: 0,
-            depth: u8::MAX,
+            depth: u32::MAX,
             indegree: 0,
+            distance: f32::MAX,
             ancestor: None,
             vlist: Vec::<Vptr>::new(),
+            edges: Vec::new(),
         }
     }
 
@@ -69,8 +73,10 @@ impl Vertex {
             finish_time: self.finish_time,
             depth: self.depth,
             indegree: 0,
+            distance: f32::MAX,
             ancestor: None,
             vlist: Vec::<Vptr>::new(),
+            edges: Vec::new(),
         }
     }
 
@@ -82,8 +88,9 @@ impl Vertex {
         Rc::new(RefCell::new(Vertex::new(idx)))
     }
 
-    fn link(&mut self, v: Vptr) {
+    fn link(&mut self, v: Vptr, w: f32) {
         v.borrow_mut().indegree += 1;
+        self.edges.push(Edge::new(self.idx, v.borrow().idx, w));
         self.vlist.push(v);
     }
 
@@ -92,8 +99,17 @@ impl Vertex {
         self.color = Color::White;
         self.discover_time = 0;
         self.finish_time = 0;
-        self.depth = u8::MAX;
+        self.depth = u32::MAX;
         self.ancestor = None;
+        self.distance = f32::MAX;
+    }
+
+    pub fn idx(&self) -> usize {
+        self.idx
+    }
+
+    pub fn get_distance(&self) -> f32 {
+        self.distance
     }
 
     fn is_visited(&self) -> bool {
@@ -102,6 +118,10 @@ impl Vertex {
 
     pub fn iter(&self) -> std::slice::Iter<'_, Rc<RefCell<Vertex>>> {
         self.vlist.iter()
+    }
+
+    pub fn iter_edge(&self) -> std::slice::Iter<'_, Edge> {
+        self.edges.iter()
     }
 
     pub fn dfs_traverse<F, P, L, T>(
@@ -138,41 +158,47 @@ impl Vertex {
     }
 }
 
-pub struct Edge<T> {
-    from: Vertex,
-    to: Vertex,
-    weight: T,
+#[derive(Debug, Clone)]
+pub struct Edge {
+    from: usize,
+    to: usize,
+    weight: f32,
 }
 
-// impl<T> Edge<T> {
-//     pub fn new() {
-//         let mut heap = BinaryHeap::new();
-//         heap.push(1.1);
-//         heap.push(1.2);
-//         heap.push(1.1);
-//     }
-// }
-
-impl<T: Ord> Ord for Edge<T> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.weight.cmp(&other.weight)
+impl Edge {
+    pub fn new(from: usize, to: usize, weight: f32) -> Self {
+        Edge { from, to, weight }
     }
 }
 
-impl<T: Ord> PartialOrd for Edge<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+impl Eq for Edge {}
+
+impl Ord for Edge {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        if self.weight > other.weight {
+            std::cmp::Ordering::Less
+        } else {
+            std::cmp::Ordering::Greater
+        }
+    }
+}
+
+impl PartialOrd for Edge {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T: Ord> Eq for Edge<T> {}
-
-impl<T: Ord> PartialEq for Edge<T> {
+impl PartialEq for Edge {
     fn eq(&self, other: &Self) -> bool {
-        self.weight == other.weight
+        self.from == other.from && self.to == other.to
+            || self.from == other.to && self.to == other.from
     }
-    fn ne(&self, other: &Self) -> bool {
-        self.weight != other.weight
+}
+
+impl std::fmt::Display for Edge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {} {:2.3}", self.from, self.to, self.weight)
     }
 }
 
@@ -186,8 +212,8 @@ impl std::fmt::Display for DictetedGraph {
         // write!(f, "({}, {})", self.x, self.y)
         for v in self.iter() {
             write!(f, "{}: ", v.borrow().idx)?;
-            for vv in v.borrow().vlist.iter() {
-                write!(f, "{} ", vv.borrow().idx)?;
+            for Edge { from, to, weight } in v.borrow().iter_edge() {
+                write!(f, "{} ({:2.3})", to, weight)?;
             }
             write!(f, "\n")?;
         }
@@ -206,11 +232,11 @@ impl DictetedGraph {
         DictetedGraph { e, vertex_list }
     }
 
-    pub fn build_graph(v: usize, edges: Vec<(usize, usize)>) -> DictetedGraph {
+    pub fn build_graph(v: usize, edges: Vec<(usize, usize, f32)>) -> DictetedGraph {
         let mut g = DictetedGraph::new(v);
 
-        for (from, to) in edges {
-            g.add_edge(from, to);
+        for (from, to, weight) in edges {
+            g.add_edge(from, to, weight);
         }
 
         g
@@ -233,7 +259,7 @@ impl DictetedGraph {
         }
     }
 
-    pub fn add_edge(&mut self, from_idx: usize, to_idx: usize) -> bool {
+    pub fn add_edge(&mut self, from_idx: usize, to_idx: usize, weight: f32) -> bool {
         if from_idx == to_idx {
             return false;
         }
@@ -241,7 +267,7 @@ impl DictetedGraph {
         let from = self.get_vertex(from_idx);
         let to = self.get_vertex(to_idx);
 
-        from.borrow_mut().link(to);
+        from.borrow_mut().link(to, weight);
 
         self.e += 1;
         true
@@ -259,9 +285,8 @@ impl DictetedGraph {
         };
 
         for v in self.iter() {
-            let to_idx = v.borrow().idx;
-            for u in v.borrow().iter() {
-                rg.add_edge(u.borrow().idx, to_idx);
+            for Edge { from, to, weight } in v.borrow().iter_edge() {
+                rg.add_edge(*from, *to, *weight);
             }
         }
 
@@ -306,12 +331,12 @@ impl DictetedGraph {
         }
     }
 
-    pub fn query_depth(&mut self, from_idx: usize, to_idx: usize) -> u8 {
+    pub fn query_depth(&mut self, from_idx: usize, to_idx: usize) -> u32 {
         self.breadth_first_search(from_idx);
         self.vertex_list[to_idx].borrow().depth
     }
 
-    pub fn get_depth(&mut self, v_idx: usize) -> u8 {
+    pub fn get_depth(&mut self, v_idx: usize) -> u32 {
         self.vertex_list[v_idx].borrow().depth
     }
 
@@ -335,14 +360,14 @@ impl DictetedGraph {
     }
 
     pub fn depth_first_search(&mut self, start: Vptr) {
-        let mut time = 0u8;
+        let mut time = 0u32;
         dfs_helper(&start, &mut time);
 
         for v in self.iter() {
             dfs_helper(v, &mut time);
         }
 
-        fn dfs_helper(v: &Vptr, time: &mut u8) {
+        fn dfs_helper(v: &Vptr, time: &mut u32) {
             if v.borrow().color != Color::White {
                 return;
             }
@@ -366,8 +391,22 @@ impl DictetedGraph {
         }
     }
 
-    pub fn topological_sort(&mut self) -> Vec<(usize, u8)> {
+    pub fn topological_sort(&mut self) -> Vec<(usize, u32)> {
         let start = self.get_min_indegree_vertex();
+        self.depth_first_search(start);
+
+        let mut order = Vec::new();
+        for v in self.iter() {
+            order.push((v.borrow().idx, v.borrow().finish_time));
+        }
+
+        order.sort_by(|a, b| a.1.cmp(&b.1).reverse());
+
+        order
+    }
+
+    pub fn topological_sort_from(&mut self, idx: usize) -> Vec<(usize, u32)> {
+        let start = self.get_vertex(idx);
         self.depth_first_search(start);
 
         let mut order = Vec::new();
@@ -397,15 +436,15 @@ impl DictetedGraph {
         }
     }
 
-    pub fn topological_sort_by_dfs(&mut self) -> VecDeque<(usize, u8)> {
-        let mut data = VecDeque::<(usize, u8)>::new();
+    pub fn topological_sort_by_dfs(&mut self) -> VecDeque<(usize, u32)> {
+        let mut data = VecDeque::<(usize, u32)>::new();
 
         // let mut pre = |_v, _time| {};
-        let mut pre = |v: &mut Vertex, discover_time: &mut u8| {
+        let mut pre = |v: &mut Vertex, discover_time: &mut u32| {
             *discover_time += 1;
             v.discover_time = *discover_time;
         };
-        let mut post = |v: &mut Vertex, fin_time: &mut u8| {
+        let mut post = |v: &mut Vertex, fin_time: &mut u32| {
             *fin_time += 1;
             v.finish_time = *fin_time;
             data.push_front((v.idx, *fin_time));
@@ -468,6 +507,154 @@ impl DictetedGraph {
     }
 }
 
+// shortest path algorithm
+impl DictetedGraph {
+    pub fn bellman_ford(&mut self, source_idx: usize) -> bool {
+        self.reset_vertexs_info();
+        // Initialized source vertex's distance
+        self.get_vertex(source_idx).borrow_mut().distance = 0.0;
+
+        for _ in 0..self.V() - 1 {
+            for v in self.iter() {
+                for e in v.borrow().iter_edge() {
+                    self.relax(e);
+                }
+            }
+        }
+
+        for v in self.iter() {
+            for Edge { from, to, weight } in v.borrow().iter_edge() {
+                let source = self.get_vertex(*from);
+                let sink = self.get_vertex(*to);
+                if sink.borrow().distance > source.borrow().distance + weight {
+                    return false;
+                }
+            }
+        }
+
+        true
+    }
+
+    // Only can apply to DAG
+    pub fn shortest_path_find_by_sort(&mut self, source_idx: usize) {
+        let sort = self.topological_sort_by_dfs();
+        // println!("{:?}", sort);
+
+        self.reset_vertexs_info();
+        self.get_vertex(source_idx).borrow_mut().distance = 0.0;
+
+        let mut iter = sort.iter();
+        if let Some((source_idx, _)) = iter.find(|(idx, _)| idx == &source_idx) {
+            for e in self.get_vertex(*source_idx).borrow().iter_edge() {
+                self.relax(e);
+            }
+
+            for (idx, _) in iter {
+                // println!("{}", idx);
+                let v = self.get_vertex(*idx);
+                for e in v.borrow().iter_edge() {
+                    self.relax(e);
+                }
+            }
+        };
+    }
+
+    pub fn relax(&self, e: &Edge) {
+        let Edge { from, to, weight } = e;
+        let source = self.get_vertex(*from);
+        let sink = self.get_vertex(*to);
+
+        if sink.borrow().distance > source.borrow().distance + weight {
+            // println!(
+            //     "{}.d {}, {}.d {}, w {}",
+            //     from,
+            //     source.borrow().distance,
+            //     to,
+            //     sink.borrow().distance,
+            //     weight
+            // );
+            sink.borrow_mut().distance = source.borrow().distance + weight;
+            sink.borrow_mut().ancestor = Some(source);
+        }
+    }
+
+    pub fn get_shortest_path(&self, end_idx: usize) -> Vec<usize> {
+        let mut path = Vec::new();
+
+        let mut end_vertex = self.get_vertex(end_idx);
+        path.push(end_vertex.borrow().idx);
+
+        while let Some(v) = end_vertex.clone().borrow().ancestor.clone() {
+            end_vertex = v.clone();
+            path.push(v.borrow().idx);
+        }
+
+        path
+    }
+}
+
+pub mod Record {
+    #[derive(Copy, Clone, PartialEq)]
+    pub struct State {
+        pub distance: f32,
+        pub vertex_idx: usize,
+    }
+
+    impl Eq for State {}
+    impl std::cmp::Ord for State {
+        fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+            other.distance.total_cmp(&self.distance)
+            //.then_with(|| self.vertex_idx.cmp(&other.vertex_idx)
+        }
+    }
+    impl PartialOrd for State {
+        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+            Some(self.cmp(other))
+        }
+    }
+}
+
+// dijkstra
+impl DictetedGraph {
+    pub fn dijkstra_shortest_path(&mut self, source_idx: usize, goal_idx: usize) -> Option<f32> {
+        let mut distance = vec![f32::MAX; self.V()];
+        let mut heap = BinaryHeap::new();
+
+        use Record::State;
+        distance[source_idx] = 0.0;
+        heap.push(State {
+            distance: 0.0,
+            vertex_idx: source_idx,
+        });
+
+        while let Some(State {
+            distance: dist,
+            vertex_idx: v_idx,
+        }) = heap.pop()
+        {
+            if v_idx == goal_idx {
+                return Some(dist);
+            }
+            for Edge {
+                from: _,
+                to,
+                weight,
+            } in self.get_vertex(v_idx).borrow().iter_edge()
+            {
+                if distance[*to] > dist + *weight {
+                    distance[*to] = dist + *weight;
+                    heap.push(State {
+                        distance: distance[*to],
+                        vertex_idx: *to,
+                    })
+                }
+            }
+        }
+
+        None
+    }
+}
+
 pub fn parse_graph_from_stdio() -> Result<DictetedGraph, std::io::Error> {
     let mut input = String::new();
     std::io::stdin().read_line(&mut input)?;
@@ -488,9 +675,15 @@ pub fn parse_graph_from_stdio() -> Result<DictetedGraph, std::io::Error> {
         let nums: Vec<&str> = input.split_ascii_whitespace().collect();
         // println!("{:?}", nums);
         // println!("{} {}", nums[0], nums[1]);
+        let weight = if nums.len() == 3 {
+            nums[2].trim().parse::<f32>().unwrap_or(1.0)
+        } else {
+            1.0
+        };
         g.add_edge(
             nums[0].trim().parse::<usize>().unwrap(),
             nums[1].trim().parse::<usize>().unwrap(),
+            weight,
         );
     }
 
@@ -501,14 +694,14 @@ pub fn parse_graph_from_stdio() -> Result<DictetedGraph, std::io::Error> {
 //     a.idx
 // }
 
-// fn t2(a: &mut Vertex) -> u8 {
+// fn t2(a: &mut Vertex) -> u32 {
 //     a.visited
 // }
 
-// fn t3<'r>(v: &'r mut Vertex) -> u8 {
+// fn t3<'r>(v: &'r mut Vertex) -> u32 {
 //     let a = t1(v);
 //     let b = t2(v);
-//     a as u8 + b
+//     a as u32 + b
 // }
 
 // #[test]

@@ -375,10 +375,10 @@ impl UndiGraph {
 
         while mst.len() != self.V() - 1 {
             let u = self.get_vertex(u_idx);
-            for (w, v) in u.borrow().iter() {
+            for (weight, v) in u.borrow().iter() {
                 let v_idx = v.borrow().idx;
                 if !visited[v_idx] {
-                    heap.push(Edge::new(u_idx, v_idx, *w));
+                    heap.push(Edge::new(u_idx, v_idx, *weight));
                 }
             }
 
