@@ -28,32 +28,8 @@ fn main() {
     /**/
     let scc = g.stronge_connected_components();
     println!("{:?}", scc);
-    // let mut cnt = 0;
-    // for cc in scc {
-    //     println!("{}:", cnt);
-    //     for i in cc {
-    //         print!("{} ", i);
-    //     }
-    //     cnt += 1;
-    //     println!();
-    // }
-
     /**/
-    // {
-    //     println!("\nDFS 2");
-    //     g.reset_vertexs_info();
-    //     let sort = g.topological_sort();
-    //     for (idx, _) in sort {
-    //         print!("{} ", idx);
-    //     }
-    //     println!();
 
-    //     for v in g.iter() {
-    //         println!("{}", v.borrow());
-    //     }
-    // }
-
-    /**/
     g.reset_vertexs_info();
     println!("\nBFS");
 
@@ -69,7 +45,7 @@ fn main() {
             print!("{} ({:2.3}); ", v.borrow().idx(), v.borrow().get_distance());
         }
     }
-    let path = g.get_shortest_path(9);
+    let path = g.get_shortest_path(7);
     println!("\n{:?}", path);
 
     println!("TopoSort Shortest Path");
@@ -79,7 +55,7 @@ fn main() {
             print!("{} ({:2.3}); ", v.borrow().idx(), v.borrow().get_distance());
         }
     }
-    let path = g.get_shortest_path(9);
+    let path = g.get_shortest_path(7);
     println!("\n{:?}", path);
 
     for i in 0..=12 {

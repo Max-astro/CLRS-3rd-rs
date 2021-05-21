@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::rc::Rc;
 
@@ -101,6 +100,7 @@ impl Vertex {
         self.ancestor = None;
     }
 
+    #[allow(dead_code)]
     fn is_visited(&self) -> bool {
         self.visited >= 1
     }
@@ -166,7 +166,7 @@ impl std::fmt::Display for UndiGraph {
             for (w, vv) in v.borrow().edges.iter() {
                 write!(f, "{} ({:.3}) ", vv.borrow().idx, w)?;
             }
-            write!(f, "\n");
+            let _ = write!(f, "\n");
         }
 
         write!(f, "\n")
@@ -197,9 +197,11 @@ impl UndiGraph {
         g
     }
 
+    #[allow(non_snake_case)]
     pub fn E(&self) -> usize {
         self.e
     }
+    #[allow(non_snake_case)]
     pub fn V(&self) -> usize {
         self.vertex_list.len()
     }
@@ -259,7 +261,7 @@ impl UndiGraph {
             let v = que.pop_front().unwrap();
             let depth = v.borrow().depth;
 
-            for (w, u) in v.borrow().iter() {
+            for (_, u) in v.borrow().iter() {
                 if u.borrow().color == Color::White {
                     u.borrow_mut().ancestor = Some(v.clone());
                     u.borrow_mut().depth = depth + 1;

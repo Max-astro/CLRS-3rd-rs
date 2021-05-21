@@ -131,7 +131,7 @@ impl DSForest {
         // }
         // println!();
 
-        for (name, v) in self.nodes.iter() {
+        for (name, _v) in self.nodes.iter() {
             println!("{}: {}", name, self.find_set(*name).borrow().name);
         }
         println!();

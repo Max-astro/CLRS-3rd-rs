@@ -112,6 +112,7 @@ impl Vertex {
         self.distance
     }
 
+    #[allow(dead_code)]
     fn is_visited(&self) -> bool {
         self.visited >= 1
     }
@@ -212,13 +213,40 @@ impl std::fmt::Display for DictetedGraph {
         // write!(f, "({}, {})", self.x, self.y)
         for v in self.iter() {
             write!(f, "{}: ", v.borrow().idx)?;
-            for Edge { from, to, weight } in v.borrow().iter_edge() {
+            for Edge {
+                from: _,
+                to,
+                weight,
+            } in v.borrow().iter_edge()
+            {
                 write!(f, "{} ({:2.3})", to, weight)?;
             }
             write!(f, "\n")?;
         }
 
         write!(f, "\n")
+    }
+}
+
+impl Clone for DictetedGraph {
+    fn clone(&self) -> Self {
+        let mut vertex_list = Vec::new();
+        for v in self.iter() {
+            vertex_list.push(Rc::new(RefCell::new(v.borrow().copy())));
+        }
+
+        let mut g = DictetedGraph {
+            e: 0,
+            vertex_list: vertex_list,
+        };
+
+        for v in self.iter() {
+            for Edge { from, to, weight } in v.borrow().iter_edge() {
+                g.add_edge(*from, *to, *weight);
+            }
+        }
+
+        g
     }
 }
 
@@ -242,9 +270,11 @@ impl DictetedGraph {
         g
     }
 
+    #[allow(non_snake_case)]
     pub fn E(&self) -> usize {
         self.e
     }
+    #[allow(non_snake_case)]
     pub fn V(&self) -> usize {
         self.vertex_list.len()
     }
@@ -286,7 +316,7 @@ impl DictetedGraph {
 
         for v in self.iter() {
             for Edge { from, to, weight } in v.borrow().iter_edge() {
-                rg.add_edge(*from, *to, *weight);
+                rg.add_edge(*to, *from, *weight);
             }
         }
 
@@ -537,6 +567,7 @@ impl DictetedGraph {
 
     // Only can apply to DAG
     pub fn shortest_path_find_by_sort(&mut self, source_idx: usize) {
+        self.reset_vertexs_info();
         let sort = self.topological_sort_by_dfs();
         // println!("{:?}", sort);
 
@@ -593,7 +624,7 @@ impl DictetedGraph {
     }
 }
 
-pub mod Record {
+mod record {
     #[derive(Copy, Clone, PartialEq)]
     pub struct State {
         pub distance: f32,
@@ -603,8 +634,11 @@ pub mod Record {
     impl Eq for State {}
     impl std::cmp::Ord for State {
         fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-            other.distance.total_cmp(&self.distance)
-            //.then_with(|| self.vertex_idx.cmp(&other.vertex_idx)
+            if self.distance < other.distance {
+                std::cmp::Ordering::Less
+            } else {
+                std::cmp::Ordering::Greater
+            }
         }
     }
     impl PartialOrd for State {
@@ -620,7 +654,7 @@ impl DictetedGraph {
         let mut distance = vec![f32::MAX; self.V()];
         let mut heap = BinaryHeap::new();
 
-        use Record::State;
+        use record::State;
         distance[source_idx] = 0.0;
         heap.push(State {
             distance: 0.0,

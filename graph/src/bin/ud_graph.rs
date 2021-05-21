@@ -1,8 +1,7 @@
 use graph::undirected_graph::*;
-use std::collections::{BTreeSet, BinaryHeap, HashSet};
 
 fn main() {
-    let mut g = parse_graph_from_stdio_by_edges().unwrap();
+    let g = parse_graph_from_stdio_by_edges().unwrap();
     print!("{}", g);
 
     // let mut heap = g.get_edges_heap_min();
